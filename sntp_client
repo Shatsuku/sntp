@@ -1,0 +1,74 @@
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.sql.Date;
+import java.text.DecimalFormat;
+
+public class test {
+    private static final int UDP_PORT = 123;  // SNTP UDP port
+    public static void main(String[] args) throws IOException{
+        final String serverName = args.length>0?args[0]:"pool.ntp.org";
+        // final String serverName = args.length>0?args[0]:"asia.pool.ntp.org";
+
+        //open socket
+        final DatagramSocket socket = new DatagramSocket();
+        final InetAddress ip = InetAddress.getByName(serverName); // ip
+        final byte[] buffer = new NtpMessage().toByteArray(); // array for collect data from server
+        
+        //create data packet(UDP)
+        DatagramPacket packet =
+            new DatagramPacket(buffer, buffer.length, ip, UDP_PORT);
+
+        //send packet
+        socket.send(packet);
+        
+        //get response
+        System.out.println("request sent, waiting for response...\n");
+        //receive packet form server and collect to packet
+        packet = new DatagramPacket(buffer, buffer.length);
+        socket.receive(packet);
+
+        // Immediately record the incoming timestamp
+
+        final double destTimestamp = 
+        (System.currentTimeMillis()/1000.0) + 2208988800.0; 
+
+        //collect response to object
+        final NtpMessage msg = new NtpMessage(packet.getData());
+        //close socket
+        socket.close();
+
+        //delay time
+        final double roundTripDelay =
+            (destTimestamp - msg.originateTimestamp) -
+            (msg.transmitTimestamp - msg.receiveTimestamp);
+        // offset
+        final double localClockOffset =
+         ((msg.receiveTimestamp - msg.originateTimestamp) +
+          (msg.transmitTimestamp - destTimestamp)) / 2;
+
+        //Display response
+        System.out.println("Server: " + serverName);
+        System.out.printf ("Local clock offset: %+9.2f ms%n", 1000*localClockOffset);
+        System.out.printf("Round-trip delay: %+9.2f ms%n",roundTripDelay*1000);
+ 
+ 
+        System.out.println("ReferenceTimestamp: " +
+        msg.timestampToString(msg.referenceTimestamp));
+        System.out.println("OriginateTimestamp: " +
+        msg.timestampToString(msg.originateTimestamp));
+        System.out.println("ReceiveTimestamp: " +
+        msg.timestampToString(msg.receiveTimestamp));
+        System.out.println("TransmitTimestamp: " +
+        msg.timestampToString(msg.transmitTimestamp));
+        
+        final long now = System.currentTimeMillis();  // milliseconds 1x10e-3 seconds
+        final long cor = now + Math.round (1000.0*localClockOffset);
+        System.out.printf ("\nLocal time:      %1$ta, %1$td %1$tb %1$tY, %1$tI:%1$tm:%1$tS.%1$tL %1$tp %1$tZ%n", now);
+        System.out.printf ("Corrected time:  %1$ta, %1$td %1$tb %1$tY, %1$tI:%1$tm:%1$tS.%1$tL %1$tp %1$tZ%n", cor);
+
+
+        System.out.println (msg.toString());
+    }
+}
